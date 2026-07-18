@@ -7,8 +7,8 @@ export interface WindowSize {
 
 export function useWindowSize(): WindowSize {
   const [windowSize, setWindowSize] = useState<WindowSize>({
-    width: typeof window !== "undefined" ? window.innerWidth : 1200,
-    height: typeof window !== "undefined" ? window.innerHeight : 800,
+    width: 1200,
+    height: 800,
   });
 
   useEffect(() => {
@@ -22,7 +22,7 @@ export function useWindowSize(): WindowSize {
     }
 
     window.addEventListener("resize", handleResize);
-    // Call handler right away so state gets updated with initial window size
+    // Call handler right away on mount to update state with client-side window size
     handleResize();
 
     return () => window.removeEventListener("resize", handleResize);

@@ -19,7 +19,7 @@ const lexendDeca = Lexend_Deca({
 });
 
 export const metadata: Metadata = {
-  title: "Python Online Compiler",
+  title: "Nano Compiler",
   description: "A pixel-perfect client-side Python online compiler in Next.js, Monaco, and Pyodide WebAssembly.",
 };
 

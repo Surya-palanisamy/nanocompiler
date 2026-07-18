@@ -62,3 +62,15 @@ body {
   background: #a1a1aa;
 }
 
+/* Hide Monaco suggest widget on mobile to prevent rendering bugs (black boxes) */
+@media (max-width: 768px) {
+  .monaco-editor .suggest-widget,
+  .monaco-editor .suggest-details,
+  .monaco-editor .parameter-hints-widget {
+    display: none !important;
+    visibility: hidden !important;
+    opacity: 0 !important;
+    pointer-events: none !important;
+  }
+}
+

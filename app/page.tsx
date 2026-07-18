@@ -319,6 +319,9 @@ export default function PythonCompiler() {
   const handleEditorDidMount = (editor: any, monaco: any) => {
     monaco.languages.registerCompletionItemProvider("python", {
       provideCompletionItems: (model: any, position: any) => {
+        if (typeof window !== "undefined" && window.innerWidth < 768) {
+          return { suggestions: [] };
+        }
         const word = model.getWordUntilPosition(position);
         const range = {
           startLineNumber: position.lineNumber,
@@ -413,11 +416,8 @@ export default function PythonCompiler() {
                   {/* Left Side: Title & Action Icons */}
                   <div className="flex items-center gap-2 sm:gap-3 min-w-0">
                     {/* Responsive Title */}
-                    <span className="hidden lg:inline text-[19px] font-bold text-zinc-900 dark:text-white select-none mr-2 truncate">
-                      Python Online Compiler
-                    </span>
-                    <span className="hidden sm:inline lg:hidden text-[19px] font-bold text-zinc-900 dark:text-white select-none mr-2 truncate">
-                      Python
+                    <span className="hidden sm:inline text-[19px] font-bold text-zinc-900 dark:text-white select-none mr-2 truncate">
+                      Nano Compiler
                     </span>
 
                     {/* Action Icons */}
@@ -525,9 +525,9 @@ export default function PythonCompiler() {
                   }
                   options={{
                     minimap: { enabled: false },
-                    fontSize: 17,
+                    fontSize: isMobile ? 15 : 17,
                     fontFamily: '"Lexend Deca"',
-                    lineHeight: 27.55,
+                    lineHeight: isMobile ? 24 : 27.55,
                     padding: { top: 12, bottom: 12 },
                     scrollBeyondLastLine: false,
                     automaticLayout: true,
@@ -538,18 +538,19 @@ export default function PythonCompiler() {
                     smoothScrolling: true,
                     lineNumbers: "on",
                     glyphMargin: false,
-                    folding: true,
+                    folding: !isMobile,
                     lineNumbersMinChars: 3,
                     renderLineHighlight: "all",
-                    quickSuggestions: {
+                    quickSuggestions: !isMobile ? {
                       other: true,
                       comments: false,
                       strings: false,
-                    },
-                    suggestOnTriggerCharacters: true,
-                    acceptSuggestionOnEnter: "on",
-                    tabCompletion: "on",
-                    wordBasedSuggestions: "allDocuments",
+                    } : false,
+                    suggestOnTriggerCharacters: !isMobile,
+                    acceptSuggestionOnEnter: !isMobile ? "on" : "off",
+                    tabCompletion: !isMobile ? "on" : "off",
+                    wordBasedSuggestions: !isMobile ? "allDocuments" : "off",
+                    parameterHints: { enabled: !isMobile },
                   }}
                 />
               </div>
