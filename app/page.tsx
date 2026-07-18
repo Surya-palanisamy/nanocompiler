@@ -14,14 +14,13 @@ import {
   Minimize2,
   Share2,
   Check,
-  LogIn,
-  LogOut,
   Trash2,
   Loader2,
   AlertCircle,
   CheckCircle2,
   Code,
   Terminal,
+  Keyboard,
 } from "lucide-react";
 import { ResizablePanels } from "./components/ResizablePanels";
 import { useWindowSize } from "./hooks/useWindowSize";
@@ -144,7 +143,7 @@ export default function PythonCompiler() {
   }, []);
 
   // Initialize Pyodide instance
-  const initPyodideInstance = async () => {
+  const initPyodideInstance = useCallback(async () => {
     if (!window.loadPyodide) {
       throw new Error("loadPyodide not found on window object");
     }
@@ -171,21 +170,29 @@ export default function PythonCompiler() {
 
     pyodideRef.current = pyInstance;
     setPyodideStatus("ready");
-  };
+    return pyInstance;
+  }, []);
 
-  // Load Pyodide script
-  useEffect(() => {
-    if (typeof window === "undefined") return;
+  // Lazy-load and initialize Pyodide instance
+  const getPyodide = useCallback(async () => {
+    if (pyodideRef.current && pyodideStatus === "ready") {
+      return pyodideRef.current;
+    }
 
-    const loadScriptAndInit = async () => {
+    return new Promise<any>((resolve, reject) => {
+      const runInit = async () => {
+        try {
+          const pyInstance = await initPyodideInstance();
+          resolve(pyInstance);
+        } catch (err) {
+          setPyodideStatus("error");
+          reject(err);
+        }
+      };
+
       if (window.loadPyodide) {
         setPyodideStatus("initializing");
-        try {
-          await initPyodideInstance();
-        } catch (err) {
-          console.error("Pyodide initialization failed:", err);
-          setPyodideStatus("error");
-        }
+        runInit();
         return;
       }
 
@@ -193,28 +200,22 @@ export default function PythonCompiler() {
       const script = document.createElement("script");
       script.src = "/pyodide/pyodide.js";
       script.async = true;
-      script.onload = async () => {
+      script.onload = () => {
         setPyodideStatus("initializing");
-        try {
-          await initPyodideInstance();
-        } catch (err) {
-          console.error("Pyodide initialization after script load failed:", err);
-          setPyodideStatus("error");
-        }
+        runInit();
       };
       script.onerror = () => {
         setPyodideStatus("error");
+        reject(new Error("Failed to load Pyodide script"));
       };
       document.body.appendChild(script);
-    };
-
-    loadScriptAndInit();
-  }, []);
+    });
+  }, [pyodideStatus, initPyodideInstance]);
 
   // Primary Run Code logic
   const runCode = useCallback(async () => {
     if (isRunning) return;
-    if (!pyodideRef.current || pyodideStatus !== "ready") {
+    if (pyodideStatus === "loading_script" || pyodideStatus === "initializing") {
       return;
     }
 
@@ -236,11 +237,14 @@ export default function PythonCompiler() {
     const startTime = performance.now();
 
     try {
+      // Lazy load Pyodide (if not loaded yet)
+      const pyInstance = await getPyodide();
+
       // Auto-load any packages imported in the python script (e.g. numpy)
-      await pyodideRef.current.loadPackagesFromImports(code);
+      await pyInstance.loadPackagesFromImports(code);
 
       // Execute python code in Pyodide
-      await pyodideRef.current.runPythonAsync(code);
+      await pyInstance.runPythonAsync(code);
 
       const endTime = performance.now();
       const duration = (endTime - startTime) / 1000;
@@ -260,7 +264,7 @@ export default function PythonCompiler() {
       setStderr(stderrBufferRef.current.join(""));
       setIsRunning(false);
     }
-  }, [code, isRunning, pyodideStatus, isMobile]);
+  }, [code, isRunning, pyodideStatus, isMobile, getPyodide]);
 
   // Bind Keyboard Shortcut Ctrl+Enter
   useEffect(() => {
@@ -479,7 +483,7 @@ export default function PythonCompiler() {
                     {/* Run Code Button */}
                     <button
                       onClick={runCode}
-                      disabled={isRunning || pyodideStatus !== "ready"}
+                      disabled={isRunning || pyodideStatus === "loading_script" || pyodideStatus === "initializing"}
                       className="h-[34px] flex items-center px-3 sm:px-4.5 text-xs font-bold bg-zinc-900 text-white dark:bg-white dark:text-black hover:bg-zinc-800 dark:hover:bg-zinc-200 transition-all rounded-[6px] shadow-sm select-none active:scale-95 disabled:bg-zinc-200 dark:disabled:bg-zinc-850 disabled:text-zinc-400 dark:disabled:text-zinc-500 disabled:scale-100 disabled:cursor-not-allowed cursor-pointer"
                     >
                       {isRunning ? (
@@ -551,6 +555,10 @@ export default function PythonCompiler() {
                     tabCompletion: !isMobile ? "on" : "off",
                     wordBasedSuggestions: !isMobile ? "allDocuments" : "off",
                     parameterHints: { enabled: !isMobile },
+                    scrollbar: {
+                      vertical: "hidden",
+                      horizontal: "hidden",
+                    },
                   }}
                 />
               </div>
@@ -569,7 +577,7 @@ export default function PythonCompiler() {
                       : "border-transparent text-zinc-500 hover:text-zinc-900 dark:text-zinc-400 dark:hover:text-white"
                       }`}
                   >
-                    <LogIn className="h-4 w-4 sm:h-4.5 sm:w-4.5" />
+                    <Keyboard className="h-4 w-4 sm:h-4.5 sm:w-4.5" />
                     <span>Input</span>
                   </button>
 
@@ -580,7 +588,7 @@ export default function PythonCompiler() {
                       : "border-transparent text-zinc-500 hover:text-zinc-900 dark:text-zinc-400 dark:hover:text-white"
                       }`}
                   >
-                    <LogOut className="h-4 w-4 sm:h-4.5 sm:w-4.5" />
+                    <Terminal className="h-4 w-4 sm:h-4.5 sm:w-4.5" />
                     <span>Output</span>
                   </button>
                 </div>
@@ -621,7 +629,7 @@ export default function PythonCompiler() {
                         <Loader2 className="h-6 w-6 animate-spin text-violet-500 mb-2" />
                         <span>Running Python script...</span>
                       </div>
-                    ) : pyodideStatus !== "ready" ? (
+                    ) : (pyodideStatus === "loading_script" || pyodideStatus === "initializing") ? (
                       <div className="flex flex-col h-full w-full items-center justify-center text-zinc-500 py-10 font-sans text-xs text-center px-4">
                         <Loader2 className="h-6 w-6 animate-spin text-violet-500 mb-2" />
                         <span>Initializing python runner environment. This may take 5-10 seconds on first run...</span>
