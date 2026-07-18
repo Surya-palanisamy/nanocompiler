@@ -54,7 +54,7 @@ export default function PythonCompiler() {
   const [hasError, setHasError] = useState(false);
 
   // App UI states
-  const [activeTab, setActiveTab] = useState<"input" | "output">("input");
+  const [isStdinExpanded, setIsStdinExpanded] = useState(true);
   const [theme, setTheme] = useState<"dark" | "light">("dark");
   const [mobileActiveView, setMobileActiveView] = useState<"code" | "console">("code");
 
@@ -160,9 +160,13 @@ export default function PythonCompiler() {
         const val = stdinBufferRef.current;
         const idx = stdinIndexRef.current;
         if (idx < val.length) {
-          const char = val.charAt(idx);
-          stdinIndexRef.current = idx + 1;
-          return char;
+          const remaining = val.slice(idx);
+          stdinIndexRef.current = val.length;
+          // Ensure it ends with a newline so Python's input() completes successfully
+          if (!remaining.endsWith("\n")) {
+            return remaining + "\n";
+          }
+          return remaining;
         }
         return ""; // EOF
       },
@@ -220,7 +224,6 @@ export default function PythonCompiler() {
     }
 
     setIsRunning(true);
-    setActiveTab("output"); // Switch to output tab automatically on run
     if (isMobile) {
       setMobileActiveView("console");
     }
@@ -500,13 +503,6 @@ export default function PythonCompiler() {
                       )}
                     </button>
 
-                    {/* Small loading indicator */}
-                    {(pyodideStatus === "loading_script" || pyodideStatus === "initializing") && (
-                      <div className="flex items-center gap-1 text-[11px] text-zinc-500 select-none">
-                        <Loader2 className="h-3 w-3 animate-spin text-violet-500" />
-                        <span className="hidden xl:inline">Loading compiler...</span>
-                      </div>
-                    )}
                   </div>
 
                 </div>
@@ -567,112 +563,95 @@ export default function PythonCompiler() {
           right={
             <div className="h-full w-full flex flex-col overflow-hidden bg-[#fcfcfc] dark:bg-[#121212]">
 
-              {/* Right Panel Header (Tabs) */}
-              <div className="h-12 flex items-end px-2 sm:px-4 border-b bg-white dark:bg-[#151515] border-zinc-200 dark:border-zinc-800 shrink-0 select-none">
-                <div className="flex gap-1 sm:gap-2 h-full items-end">
+              {/* Right Panel Header */}
+              <div className="h-12 flex items-center justify-between px-5 border-b bg-white dark:bg-[#151515] border-zinc-200 dark:border-zinc-800 shrink-0 select-none">
+                <span className="text-[15px] font-bold tracking-wide text-zinc-800 dark:text-zinc-200">
+                  Execution Console
+                </span>
+                {(stdout || stderr || execTime) && (
                   <button
-                    onClick={() => setActiveTab("input")}
-                    className={`flex items-center gap-1.5 sm:gap-2 px-2.5 sm:px-4 h-[40px] text-xs md:text-sm font-bold transition-all border-b-2 cursor-pointer ${activeTab === "input"
-                      ? "border-zinc-900 text-zinc-900 dark:border-white dark:text-white"
-                      : "border-transparent text-zinc-500 hover:text-zinc-900 dark:text-zinc-400 dark:hover:text-white"
-                      }`}
+                    onClick={handleClearOutput}
+                    className="flex items-center gap-1.5 text-xs text-zinc-500 dark:text-zinc-400 hover:text-zinc-900 dark:hover:text-white transition-colors cursor-pointer"
                   >
-                    <Keyboard className="h-4 w-4 sm:h-4.5 sm:w-4.5" />
-                    <span>Input</span>
+                    <Trash2 className="h-3.5 w-3.5" />
+                    <span>Clear Console</span>
                   </button>
-
-                  <button
-                    onClick={() => setActiveTab("output")}
-                    className={`flex items-center gap-1.5 sm:gap-2 px-2.5 sm:px-4 h-[40px] text-xs md:text-sm font-bold transition-all border-b-2 cursor-pointer ${activeTab === "output"
-                      ? "border-zinc-900 text-zinc-900 dark:border-white dark:text-white"
-                      : "border-transparent text-zinc-500 hover:text-zinc-900 dark:text-zinc-400 dark:hover:text-white"
-                      }`}
-                  >
-                    <Terminal className="h-4 w-4 sm:h-4.5 sm:w-4.5" />
-                    <span>Output</span>
-                  </button>
-                </div>
+                )}
               </div>
 
-              {/* Active Tab Panel Content */}
-              {activeTab === "input" ? (
-                <div className="flex-1 flex flex-col overflow-hidden bg-white dark:bg-[#151515]">
+              {/* Output Terminal Area */}
+              <div className="flex-1 p-5 overflow-y-auto font-mono text-[19px] leading-[27.55px] bg-[#fafafa] text-zinc-900 dark:bg-[#121212] dark:text-zinc-200">
+                {isRunning ? (
+                  <div className="flex flex-col h-full w-full items-center justify-center text-zinc-500 py-10 font-sans text-xs">
+                    <Loader2 className="h-6 w-6 animate-spin text-violet-500 mb-2" />
+                    <span>Running Python script...</span>
+                  </div>
+                ) : (pyodideStatus === "loading_script" || pyodideStatus === "initializing") ? (
+                  <div className="flex flex-col h-full w-full items-center justify-center text-zinc-500 py-10 font-sans text-xs text-center px-4">
+                    <Loader2 className="h-6 w-6 animate-spin text-violet-500 mb-2" />
+                    <span>Initializing python runner environment. This may take 5-10 seconds on first run...</span>
+                  </div>
+                ) : !stdout && !stderr ? (
+                  <span className="text-zinc-500 italic select-none">
+                    No execution output. Click "Run Code" above 
+                  </span>
+                ) : (
+                  <div className="whitespace-pre-wrap select-text">
+                    {stdout && <div className="text-zinc-900 dark:text-zinc-200">{stdout}</div>}
+                    {stderr && (
+                      <div className="text-rose-500 dark:text-rose-400 mt-2 p-3 rounded bg-rose-950/20 border border-rose-900/30">
+                        {stderr}
+                      </div>
+                    )}
+                  </div>
+                )}
+              </div>
+
+              {/* Output Execution Status Footer */}
+              {execTime && !isRunning && (
+                <footer className="flex items-center justify-between px-5 py-2 text-xs border-t bg-zinc-50 border-zinc-200 text-zinc-500 dark:bg-[#151515] dark:border-zinc-800 dark:text-zinc-400 shrink-0 select-none">
+                  <div className="flex items-center gap-1.5">
+                    {hasError ? (
+                      <>
+                        <AlertCircle className="h-4 w-4 text-rose-500" />
+                        <span className="text-rose-500 font-semibold">Failed with errors</span>
+                      </>
+                    ) : (
+                      <>
+                        <CheckCircle2 className="h-4 w-4 text-emerald-500" />
+                        <span className="text-emerald-500 font-semibold">Success</span>
+                      </>
+                    )}
+                  </div>
+                  <div className="font-mono">
+                    Execution time: <span className="font-semibold text-zinc-900 dark:text-white">{execTime}</span>
+                  </div>
+                </footer>
+              )}
+
+              {/* Standard Input Area */}
+              <div className={`border-t border-zinc-200 dark:border-zinc-800 flex flex-col shrink-0 bg-white dark:bg-[#151515] transition-all duration-150 ${isStdinExpanded ? "h-36" : "h-8"}`}>
+                <button
+                  onClick={() => setIsStdinExpanded(!isStdinExpanded)}
+                  className="h-8 flex items-center justify-between px-5 bg-zinc-50 dark:bg-[#181818] border-b border-zinc-150 dark:border-zinc-800 text-[11px] font-bold tracking-wider text-zinc-450 dark:text-zinc-500 hover:text-zinc-800 dark:hover:text-zinc-300 transition-colors select-none cursor-pointer w-full text-left"
+                >
+                  <div className="flex items-center gap-1.5">
+                    <Keyboard className="h-3.5 w-3.5" />
+                    <span>STANDARD INPUT (STDIN)</span>
+                  </div>
+                  <span className="text-[10px] text-zinc-400 dark:text-zinc-500">
+                    {isStdinExpanded ? "Collapse ▲" : "Expand ▼"}
+                  </span>
+                </button>
+                {isStdinExpanded && (
                   <textarea
                     value={stdinVal}
                     onChange={(e) => setStdinVal(e.target.value)}
-                    className="w-full h-full p-5 bg-white text-zinc-900 dark:bg-[#151515] dark:text-zinc-200 text-[19px] leading-[27.55px] font-mono resize-none focus:outline-none border-none outline-none"
+                    placeholder="Type program input values here (one per line, if your program calls input() multiple times)..."
+                    className="w-full flex-1 p-3 bg-white text-zinc-900 dark:bg-[#151515] dark:text-zinc-100 text-[16px] leading-[24px] font-mono resize-none focus:outline-none border-none outline-none placeholder:text-zinc-400 dark:placeholder:text-zinc-600"
                   />
-                </div>
-              ) : (
-                <div className="flex-1 flex flex-col overflow-hidden bg-[#fafafa] dark:bg-[#151515]">
-
-                  {/* Output Header toolbar */}
-                  <div className="h-10 flex items-center justify-between px-5 border-b border-zinc-200 dark:border-zinc-800 bg-[#fafafa] dark:bg-[#151515]">
-                    <span className="text-[14px] font-bold tracking-wider text-zinc-400 dark:text-zinc-500 select-none">
-                      Execution Output
-                    </span>
-                    {(stdout || stderr || execTime) && (
-                      <button
-                        onClick={handleClearOutput}
-                        className="flex items-center gap-1.5 text-xs text-zinc-500 dark:text-zinc-400 hover:text-zinc-900 dark:hover:text-white transition-colors cursor-pointer"
-                      >
-                        <Trash2 className="h-3.5 w-3.5" />
-                        <span>Clear</span>
-                      </button>
-                    )}
-                  </div>
-
-                  {/* Output Terminal Area */}
-                  <div className="flex-1 p-5 overflow-y-auto font-mono text-[19px] leading-[27.55px] bg-[#fafafa] text-zinc-900 dark:bg-[#121212] dark:text-zinc-200">
-                    {isRunning ? (
-                      <div className="flex flex-col h-full w-full items-center justify-center text-zinc-500 py-10 font-sans text-xs">
-                        <Loader2 className="h-6 w-6 animate-spin text-violet-500 mb-2" />
-                        <span>Running Python script...</span>
-                      </div>
-                    ) : (pyodideStatus === "loading_script" || pyodideStatus === "initializing") ? (
-                      <div className="flex flex-col h-full w-full items-center justify-center text-zinc-500 py-10 font-sans text-xs text-center px-4">
-                        <Loader2 className="h-6 w-6 animate-spin text-violet-500 mb-2" />
-                        <span>Initializing python runner environment. This may take 5-10 seconds on first run...</span>
-                      </div>
-                    ) : !stdout && !stderr ? (
-                      <span className="text-zinc-500 italic select-none">
-                        No execution output. Click "Run Code" above 
-                      </span>
-                    ) : (
-                      <div className="whitespace-pre-wrap select-text">
-                        {stdout && <div className="text-zinc-900 dark:text-zinc-200">{stdout}</div>}
-                        {stderr && (
-                          <div className="text-rose-500 dark:text-rose-400 mt-2 p-3 rounded bg-rose-950/20 border border-rose-900/30">
-                            {stderr}
-                          </div>
-                        )}
-                      </div>
-                    )}
-                  </div>
-
-                  {/* Output Execution Status Footer */}
-                  {execTime && !isRunning && (
-                    <footer className="flex items-center justify-between px-5 py-2 text-xs border-t bg-zinc-50 border-zinc-200 text-zinc-500 dark:bg-[#151515] dark:border-zinc-800 dark:text-zinc-400 shrink-0 select-none">
-                      <div className="flex items-center gap-1.5">
-                        {hasError ? (
-                          <>
-                            <AlertCircle className="h-4 w-4 text-rose-500" />
-                            <span className="text-rose-500 font-semibold">Failed with errors</span>
-                          </>
-                        ) : (
-                          <>
-                            <CheckCircle2 className="h-4 w-4 text-emerald-500" />
-                            <span className="text-emerald-500 font-semibold">Success</span>
-                          </>
-                        )}
-                      </div>
-                      <div className="font-mono">
-                        Execution time: <span className="font-semibold text-zinc-900 dark:text-white">{execTime}</span>
-                      </div>
-                    </footer>
-                  )}
-                </div>
-              )}
+                )}
+              </div>
             </div>
           }
         />
