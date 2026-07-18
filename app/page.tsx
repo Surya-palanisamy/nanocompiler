@@ -1,7 +1,11 @@
 "use client";
 
 import React, { useState, useEffect, useRef, useCallback } from "react";
-import Editor from "@monaco-editor/react";
+import Editor, { loader } from "@monaco-editor/react";
+
+if (typeof window !== "undefined") {
+  loader.config({ paths: { vs: "/monaco/vs" } });
+}
 import {
   RotateCw,
   Moon,
@@ -146,12 +150,12 @@ export default function PythonCompiler() {
     }
 
     const pyInstance = await window.loadPyodide({
-      indexURL: "https://cdn.jsdelivr.net/pyodide/v0.26.2/full/",
+      indexURL: "/pyodide/",
       stdout: (text: string) => {
-        stdoutBufferRef.current.push(text);
+        stdoutBufferRef.current.push(text + "\n");
       },
       stderr: (text: string) => {
-        stderrBufferRef.current.push(text);
+        stderrBufferRef.current.push(text + "\n");
       },
       stdin: () => {
         const val = stdinBufferRef.current;
@@ -187,7 +191,7 @@ export default function PythonCompiler() {
 
       setPyodideStatus("loading_script");
       const script = document.createElement("script");
-      script.src = "https://cdn.jsdelivr.net/pyodide/v0.26.2/full/pyodide.js";
+      script.src = "/pyodide/pyodide.js";
       script.async = true;
       script.onload = async () => {
         setPyodideStatus("initializing");
@@ -272,13 +276,11 @@ export default function PythonCompiler() {
 
   // Reset editor template
   const handleReset = () => {
-    if (window.confirm("Are you sure you want to reset the editor code to the default template?")) {
       setCode(DEFAULT_CODE);
       setStdout("");
       setStderr("");
       setExecTime(null);
       setHasError(false);
-    }
   };
 
   // Fullscreen Toggle
